@@ -2,10 +2,11 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <immintrin.h>
-
+#include <papi.h>
 #include <unistd.h>
 
-//#define N 52
+#define NUM_EVENTS 2
+struct timeval begin;
 
 /*
 1.1
@@ -53,6 +54,11 @@ float** trans;
 float** aux;
 double clearcache[30000000];
 
+int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+
+int EventSet = PAPI_NULL;
+long long values[NUM_EVENTS];
+
 
 void freeMatrices(){
 	free(A);
@@ -64,6 +70,18 @@ void clearCache (void) {
 	int i;
 	for (i = 0; i < 30000000; i++)
 		clearcache[i] = i;
+}
+
+void start (void) {
+	gettimeofday(&begin, NULL);
+}
+
+
+void stop () {
+	struct timeval end;
+	gettimeofday(&end, NULL);
+	long long duration = (end.tv_sec-begin.tv_sec)*1000000LL + end.tv_usec-begin.tv_usec;
+	printf("%lld\n", duration);
 }
 
 
@@ -169,7 +187,7 @@ void matrixMult_T(float **A, float **B,float **C, int SIZE ) {
 //1.3
 void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
-    float x;
+
 
     for (i = 0; i < SIZE; i++) {
         for (k = 0; k < SIZE; k++) {
@@ -184,7 +202,7 @@ void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
 //1.3
 void matrixMult_jki(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
-    float x;
+  
 
     for (j = 0; j < SIZE; j++){
         for (k = 0; k < SIZE; k++) {
@@ -322,19 +340,46 @@ int main(){
 
 	int size = 52;
     
-	int i,j;
-
 	init_mat(size);
 	fillMatrices(size);
-	function_run(matrixMult,size,t);
-    function_run(matrixMult_T,size,t);
-    function_run(matrixMult_ikj,size,t);
-    function_run(matrixMult_jki,size,t);
-    function_run(matrixMult_jki_T,size,t);
 
-	//matrixMult(A,B,C,N);
+	PAPI_library_init(PAPI_VER_CURRENT);
+	PAPI_create_eventset(&EventSet);
+	PAPI_add_events(EventSet,Events,NUM_EVENTS);
+
+	clearCache();
+
+	start();
+
+	PAPI_start(EventSet);
+
+	//function_run(matrixMult,size,t);
+    //function_run(matrixMult_T,size,t);
+    //function_run(matrixMult_ikj,size,t);
+    
+    //function_run(matrixMult_jki,size,t);
+    //function_run(matrixMult_jki_T,size,t);
+
+	matrixMult(A,B,C,size);
+	matrixMult_T(A,B,C,size);
+	matrixMult_ikj(A,B,C,size);
+	matrixMult_jki(A,B,C,size);
+	matrixMult_jki_T(A,B,C,size);
+
 	//matrixMult_block(A,B,aux,N,16);
 	//compare();
+
+    PAPI_stop(EventSet,values);
+    printf("time: ");
+	stop();
+
+	printf("RAM ACCESSES: %lld\n",values[0]);
+	printf("INSTR: %lld\n",values[1]);
+
+	double r = (double) values[0]/values[1];
+	printf("RAM / INS: %f\n",r);
+
+
 	
 }
 	
