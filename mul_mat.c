@@ -5,7 +5,7 @@
 
 #include <unistd.h>
 
-#define N 1619
+//#define N 52
 
 /*
 1.1
@@ -67,31 +67,31 @@ void clearCache (void) {
 }
 
 
-void init_mat(){
+void init_mat(int size){
 
 	int i;
 
-    A = malloc(N* sizeof(float *));
-    B = malloc(N* sizeof(float *));
-    C = malloc(N* sizeof(float *));
-    trans = malloc(N* sizeof(float *));
-    aux = malloc(N* sizeof(float *));
+    A = malloc(size* sizeof(float *));
+    B = malloc(size* sizeof(float *));
+    C = malloc(size* sizeof(float *));
+    trans = malloc(size* sizeof(float *));
+    aux = malloc(size* sizeof(float *));
 
-	for( i=0;i<N;i++){
-		A[i] = malloc(N* sizeof(float));
-		B[i] = malloc(N* sizeof(float));
-		C[i] = malloc(N* sizeof(float));
-		trans[i] = malloc(N* sizeof(float));
-		aux[i] = malloc(N* sizeof(float));
+	for( i=0;i<size;i++){
+		A[i] = malloc(size* sizeof(float));
+		B[i] = malloc(size* sizeof(float));
+		C[i] = malloc(size* sizeof(float));
+		trans[i] = malloc(size* sizeof(float));
+		aux[i] = malloc(size* sizeof(float));
 	}
-
+	
 }
 
-void fillMatrices (void) {
+void fillMatrices (int size) {
 	int i,j;
 
-	for ( i = 0; i < N; i++) {
-		for (j = 0; j < N; j++) {
+	for ( i = 0; i < size; i++) {
+		for (j = 0; j < size; j++) {
 			A[i][j] = ((float) rand()) / ((float) RAND_MAX);
 			B[i][j] = 1.0;
 			C[i][j] = 0.0;
@@ -231,9 +231,10 @@ double double_time() {
 
 static int compare_double (const void * a, const void * b)
 {
-  if (*(double*)a > *(double*)b) return 1;
+	 if (*(double*)a > *(double*)b) return 1;
   else if (*(double*)a < *(double*)b) return -1;
-  else return 0;  
+  else return 0;
+
 }
 
 int Best_k(double* array,int size, int k, double tol) {
@@ -258,7 +259,7 @@ void function_run(void (*function)(float**, float**, float **, int), int size, d
         (*function)(A,B,C,size);
         t1 = (double_time() - t0);
         t[t_size] = (double) (t1 * 1000.0);
-       // printf("%f\n", t[t_size]);
+       printf("%f\n", t[t_size]);
         t_size++;
       
         Best_k(t,t_size,3,0.05);
@@ -281,16 +282,16 @@ void function_run(void (*function)(float**, float**, float **, int), int size, d
 void matrixMult_block(float **A, float **B, float **aux, int SIZE, int b_SIZE){
 	int i, j, k, kk, jj;
 	float x;
-	//int en = b_SIZE * (SIZE/b_SIZE); /* Amount that fits evenly into blocks */
+	
 
 	for(kk = 0; kk < SIZE; kk += b_SIZE){
 		for(jj = 0; jj < SIZE; jj += b_SIZE){
 			for(i = 0; i < SIZE; i++){
 				for(j = jj; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++) {
-				//for(j = jj; j < jj + b_SIZE; j++){
+				
 					x=0;
 					for(k = kk; k < ((kk + b_SIZE) > SIZE ? SIZE : (kk + b_SIZE)); k++) {
-					//for(k = kk; k < kk + b_SIZE; k++){
+					
 						x += A[i][k]*B[k][j];
 						
 					}
@@ -317,17 +318,19 @@ void compare() {
 */
 
 int main(){
+	double *t = malloc(sizeof(double)*8);
 
-    double *t = malloc(sizeof(double)*8);
+	int size = 52;
+    
 	int i,j;
 
-	init_mat();
-	fillMatrices();
-	function_run(matrixMult,N,t);
-    function_run(matrixMult_T,N,t);
-    function_run(matrixMult_ikj,N,t);
-    function_run(matrixMult_jki,N,t);
-    function_run(matrixMult_jki_T,N,t);
+	init_mat(size);
+	fillMatrices(size);
+	function_run(matrixMult,size,t);
+    function_run(matrixMult_T,size,t);
+    function_run(matrixMult_ikj,size,t);
+    function_run(matrixMult_jki,size,t);
+    function_run(matrixMult_jki_T,size,t);
 
 	//matrixMult(A,B,C,N);
 	//matrixMult_block(A,B,aux,N,16);
