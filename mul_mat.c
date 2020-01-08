@@ -2,10 +2,10 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <immintrin.h>
-#include <papi.h>
+//#include <papi.h>
 #include <unistd.h>
 
-#define NUM_EVENTS 2
+//#define NUM_EVENTS 2
 struct timeval begin;
 
 /*
@@ -39,11 +39,10 @@ RAM:                  4*30720K
 
 Ki=1024 bytes
 
-(i) N*N*3*4 < 32768 -> N < 52
-
-(ii) N*N*3*4 <  262144 -> 52 < N < 148
-(iii) N*N*3*4 <  31457280 -> 148 < N < 1619
-(iv) N*N*3*4 < 125829120 -> N < 3238
+(i) N*N*3*4 < 32768 -> N < 52--------------------------> N=32      |
+(ii) N*N*3*4 <  262144 -> 52 < N < 148-----------------> N = 128   |
+(iii) N*N*3*4 <  31457280 -> 148 < N < 1619------------> N=1024    |BLOCKSIZE = 16
+(iv) N*N*3*4 < 125829120 -> N < 3238  ----------------->N=2048     |
 */
 
 
@@ -54,10 +53,10 @@ float** trans;
 float** aux;
 double clearcache[30000000];
 
-int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
 
-int EventSet = PAPI_NULL;
-long long values[NUM_EVENTS];
+//int EventSet = PAPI_NULL;
+//long long values[NUM_EVENTS];
 
 
 void freeMatrices(){
@@ -66,6 +65,17 @@ void freeMatrices(){
 	free(C);
 	free(trans);
 }
+
+void printMatrix(float** matrix, int size) {
+    int i, j;
+    for(i = 0; i < size; i++) {
+        for(j = 0; j < size; j++)
+            printf("%f ",matrix[i][j]); 
+        printf("\n");
+    }
+    printf("\n");
+}
+
 void clearCache (void) {
 	int i;
 	for (i = 0; i < 30000000; i++)
@@ -108,9 +118,11 @@ void init_mat(int size){
 void fillMatrices (int size) {
 	int i,j;
 
-	for ( i = 0; i < size; i++) {
+   
+	srand(time(NULL));
+   for ( i = 0; i < size; i++) {
 		for (j = 0; j < size; j++) {
-			A[i][j] = ((float) rand()) / ((float) RAND_MAX);
+			A[i][j] = ((float) rand()) / ((float) RAND_MAX)  * 100;
 			B[i][j] = 1.0;
 			C[i][j] = 0.0;
 			aux[i][j] = 0.0;
@@ -145,17 +157,19 @@ void transpose(float** source, int SIZE){
 //1.2
 void matrixMult(float **A, float **B,float **C, int SIZE ) {
 	int i,j,k;
-//	float x;
+    float x;
 
 	for (i = 0; i < SIZE; i++) {
 		for ( j = 0; j < SIZE; j++) {
-			//x= 0;
+			x= 0;
 			for (k = 0; k < SIZE; k++) {
-				//x += A[i][k] * B[k][j];
-				C[i][j] += A[i][k] * B[k][j];
+				x += A[i][k] * B[k][j];
+				//C[i][j] += A[i][k] * B[k][j];
 			}
-		//	C[i][j] = x;
-			//printf("%f\n",C[i][j]);
+		   C[i][j] += x;
+		   
+		
+			printf("%f\n",C[i][j]);
 		}
 
 	}
@@ -165,18 +179,18 @@ void matrixMult(float **A, float **B,float **C, int SIZE ) {
 //1.2
 void matrixMult_T(float **A, float **B,float **C, int SIZE ) {
 	int i,j,k;
-	//float x;
+	float x;
 
 	transpose(B,SIZE);
 
 	for (i = 0; i < SIZE; i++) {
 		for ( j = 0; j < SIZE; j++) {
-			//x = 0;
+			x = 0;
 			for (k = 0; k < SIZE; k++) {
-				//x += A[i][k] * B[k][j];
-				C[i][j] += A[i][k] * B[k][j];
+				x += A[i][k] * B[k][j];
+				//C[i][j] += A[i][k] * B[k][j];
 			}
-		//	C[i][j] = x;
+			C[i][j] += x;
 		//	printf("%f\n",C[i][j]);
 		}
 
@@ -187,12 +201,13 @@ void matrixMult_T(float **A, float **B,float **C, int SIZE ) {
 //1.3
 void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
-
+     float x=0;
 
     for (i = 0; i < SIZE; i++) {
         for (k = 0; k < SIZE; k++) {
+        	x = A[i][k];
             for (j = 0; j < SIZE; j++) {
-               C[i][j] += A[i][k] * B[k][j];
+               C[i][j] += x * B[k][j];
             }
   
    	    }
@@ -202,13 +217,14 @@ void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
 //1.3
 void matrixMult_jki(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
+    float x=0;
   
 
     for (j = 0; j < SIZE; j++){
         for (k = 0; k < SIZE; k++) {
-        	//x = 0;
+        	x = B[k][j];
             for (i = 0; i < SIZE; i++){
-               C[i][j]+= A[i][k] * B[k][j];
+               C[i][j]+= A[i][k] * x;
               
             }
            // C[i][j] = x;
@@ -223,14 +239,16 @@ void matrixMult_jki(float **A, float **B, float **C, int SIZE) {
 void matrixMult_jki_T(float **A, float **B, float **C, int SIZE) {
   
     int i, j, k;
+    float x;
 
     transpose(A,SIZE);
     transpose(B,SIZE);
 
     for (j = 0; j < SIZE; j++){
         for (k = 0; k < SIZE; k++) {
+        	x = B[k][j];
             for (i = 0; i < SIZE; i++){
-               C[i][j] += A[i][k] * B[k][j];
+               C[i][j] += A[i][k] * x;
             }
            
             // printf("%f\n",C[i][j]);
@@ -338,46 +356,47 @@ void compare() {
 int main(){
 	double *t = malloc(sizeof(double)*8);
 
-	int size = 52;
+	int size = 3;
     
 	init_mat(size);
 	fillMatrices(size);
 
-	PAPI_library_init(PAPI_VER_CURRENT);
-	PAPI_create_eventset(&EventSet);
-	PAPI_add_events(EventSet,Events,NUM_EVENTS);
+	//PAPI_library_init(PAPI_VER_CURRENT);
+	//PAPI_create_eventset(&EventSet);
+	//PAPI_add_events(EventSet,Events,NUM_EVENTS);
 
-	clearCache();
+	//clearCache();
 
-	start();
+	//start();
 
-	PAPI_start(EventSet);
+	//PAPI_start(EventSet);
 
 	//function_run(matrixMult,size,t);
     //function_run(matrixMult_T,size,t);
-    //function_run(matrixMult_ikj,size,t);
+    function_run(matrixMult_ikj,size,t);
     
     //function_run(matrixMult_jki,size,t);
     //function_run(matrixMult_jki_T,size,t);
 
-	matrixMult(A,B,C,size);
-	matrixMult_T(A,B,C,size);
-	matrixMult_ikj(A,B,C,size);
-	matrixMult_jki(A,B,C,size);
-	matrixMult_jki_T(A,B,C,size);
+     printMatrix(A, size);
+	//matrixMult(A,B,C,size);
+	//matrixMult_T(A,B,C,size);
+	//matrixMult_ikj(A,B,C,size);
+	//matrixMult_jki(A,B,C,size);
+	//matrixMult_jki_T(A,B,C,size);
 
 	//matrixMult_block(A,B,aux,N,16);
 	//compare();
 
-    PAPI_stop(EventSet,values);
-    printf("time: ");
-	stop();
+    //PAPI_stop(EventSet,values);
+    //printf("time: ");
+	//stop();
 
-	printf("RAM ACCESSES: %lld\n",values[0]);
-	printf("INSTR: %lld\n",values[1]);
+	//printf("RAM ACCESSES: %lld\n",values[0]);
+	//printf("INSTR: %lld\n",values[1]);
 
-	double r = (double) values[0]/values[1];
-	printf("RAM / INS: %f\n",r);
+	//double r = (double) values[0]/values[1];
+	//printf("RAM / INS: %f\n",r);
 
 
 	
