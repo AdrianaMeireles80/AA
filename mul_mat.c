@@ -17,18 +17,18 @@ PAPI_TOT_INS referentes a FLOPS e intensidade operacional e,por último, PAPI_L1
 
 --->Relativamente às instruções é preciso ter em conta vários aspetos tais como se são floating ou não que é mais leve, se trata de
 instruções store ou load, estas últimas como trasferem dados da memória para os registos é mais pesado porque é mais custoso 
-ir à memória o que vai afetar a performance do tempo de execução. Também nos diz se trata de instruções SIMD(single instruction
+ir à memória o que vai afetar a performance do xo de execução. Também nos diz se trata de instruções SIMD(single instruction
 multiple data)  single/double precision que possuem apenas um fluxo de instrução, mas possuem múltiplas unidades de cálculo.
  Isso significa que a máquina é capaz de executar uma mesma instrução em um conjunto de dados de maneira simultânea o que permite
- obter tempos de execução menores. 
+ obter xos de execução menores. 
 
 -->Relativamente às operações permite contar operações escalares de single/double precision o que nos permite identificar possíveis
-bottlenecks pois caso algo seja executado vários vezes, se for ineficiente pode atrasar o programa todo, aumentando o tempo de 
+bottlenecks pois caso algo seja executado vários vezes, se for ineficiente pode atrasar o programa todo, aumentando o xo de 
 execução o que afeta a performance.
 
 -->Relativamente às cache misses assume-se que a CPU deve aguardar um carregamento da memória principal e o número total de "stall cycles" depende 
 das cache misses e da miss penalty(Memory stall cycles = Memory accesses x miss rate x miss penalty) que por sua vez vão afetar o
-tempo de execução(CPU time = (CPU execution cycles + Memory stall cycles) x Cycle time).
+xo de execução(CPU time = (CPU execution cycles + Memory stall cycles) x Cycle time).
 
 1.4
 
@@ -307,7 +307,7 @@ void function_run(void (*function)(float**, float**, float **, int), int size, d
 
 //i)
 //Simple rearrangements of the loops can increase spatial locality, but the time per loop iteration increases with increasing array size
-//What is happening is that as the array size increases, the temporal locality decreases, and the cache experiences an increasing number of capacity misses. 
+//What is happening is that as the array size increases, the xoral locality decreases, and the cache experiences an increasing number of capacity misses. 
 //To fix this, we can use a general technique called blocking
 //The general idea of blocking is to organize the data structures in a program into large chunks called blocks
 //The program is structured so that it loads a chunk into the L1 cache, does all the reads and writes that it needs to on that chunk, then discards the chunk, loads in the next chunk, and so on.
@@ -315,9 +315,10 @@ void function_run(void (*function)(float**, float**, float **, int), int size, d
 //This technique can produce big performance gains
 
 //ii)
-void matrixMult_block(float **A, float **B, float **aux, int SIZE, int b_SIZE){
+void matrixMult_block(float **A, float **B, float **C, int SIZE){
 	int i, j, k, kk, jj;
 	float x;
+	int b_SIZE = 16;
 	
 
 	for(kk = 0; kk < SIZE; kk += b_SIZE){
@@ -331,11 +332,75 @@ void matrixMult_block(float **A, float **B, float **aux, int SIZE, int b_SIZE){
 						x += A[i][k]*B[k][j];
 						
 					}
-					aux[i][j] += x;
+					C[i][j] += x;
 				}
 			}
 		}
 	}
+}
+
+void matrixMult_block_Vec(float** __restrict__ A, float** __restrict__ B, float** __restrict__ C, int SIZE, int b_SIZE) {
+	int i, j, k, kk, jj;
+	float x;
+	
+
+		for(kk = 0; kk < SIZE; kk += b_SIZE){
+
+			for(jj = 0; jj < SIZE; jj += b_SIZE){
+
+				for(i = 0; i < SIZE; i++){
+
+					for(j = jj; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++) {
+				
+						x=0;
+						for(k = kk; k < ((kk + b_SIZE) > SIZE ? SIZE : (kk + b_SIZE)); k++) {
+					
+							x += A[i][k]*B[k][j];
+						
+						}
+					C[i][j] += x;
+					}
+				}
+			}
+		}
+}
+
+
+void matrixMult_blockVecOMP (float **A, float **B, float **C, int SIZE) {
+  int i = 0, j = 0, jj = 0, kk = 0;
+  float x[16];
+  int b_SIZE = 16;
+
+#pragma omp parallel for private(i, j, jj, kk, x)
+  for (jj = 0; jj < SIZE; jj += b_SIZE) {
+    for (kk = 0; kk < SIZE; kk += b_SIZE) {
+      for (i = 0; i < SIZE; i++) {
+
+        #pragma omp simd
+        for (j = jj; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++) {
+          x[0] = A[i][kk] * B[kk][j];
+          x[1] = A[i][kk+1] * B[kk+1][j];
+          x[2] = A[i][kk+2] * B[kk+2][j];
+          x[3] = A[i][kk+3] * B[kk+3][j];
+          x[4] = A[i][kk+4] * B[kk+4][j];
+          x[5] = A[i][kk+5] * B[kk+5][j];
+          x[6] = A[i][kk+6] * B[kk+6][j];
+          x[7] = A[i][kk+7] * B[kk+7][j];
+          x[8] = A[i][kk+8] * B[kk+8][j];
+          x[9] = A[i][kk+9] * B[kk+9][j];
+          x[10] = A[i][kk+10] * B[kk+10][j];
+          x[11] = A[i][kk+11] * B[kk+11][j];
+          x[12] = A[i][kk+12] * B[kk+12][j];
+          x[13] = A[i][kk+13] * B[kk+13][j];
+          x[14] = A[i][kk+14] * B[kk+14][j];
+          x[15] = A[i][kk+15] * B[kk+15][j];
+
+          
+          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
+        }
+      }
+    }
+  }
 }
 
 /*
