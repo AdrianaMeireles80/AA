@@ -297,14 +297,46 @@ ii)
 
 /*
 1.8
+matrixMult
 
-Cache L1->L2 DCR:328 LD INS:99697 --->mr = 0,00329
+Cache L1
+mr = 0,00329
+mr= 0,02491
+ mr = 0,60550
+mr=  0,72696
 
-Cache L1->L2 DCR:157147 LD INS:6308971 ----> mr= 0,02491
+CACHE L2
+N= 32 miss rate: 0.452096
+N=128 miss rate: 0.026115
+N=1024 miss rate: 0.036637
+N=2048 miss rate: 0.519205
 
-Cache L1->L2 DCR:1951722641 LD INS:3223319466  ---> mr = 0,60550
+CACHE L3
 
-Cache L1->L2 DCR:18745073058 LD INS:25785520369 ---> mr=  0,72696
+miss rate: 0.000000
+miss rate: 0.000416
+miss rate: 0.000107
+miss rate: 0.006320
+
+matrixMult_T
+
+Cache L1
+miss rate: 0.003786
+miss rate: 0.042448
+miss rate: 0.032730
+miss rate: 0.032208
+
+Cache L2
+miss rate: 0.750929
+miss rate: 0.021624
+miss rate: 0.085100
+miss rate: 0.058554
+
+Cache L3
+miss rate: 0.004484
+miss rate: 0.000426
+miss rate: 0.000853
+miss rate: 0.107686
 
 
 */
