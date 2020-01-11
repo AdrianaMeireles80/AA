@@ -2,11 +2,19 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <immintrin.h>
-//#include <papi.h>
+#include <papi.h>
 #include <unistd.h>
 
-//#define NUM_EVENTS 2
+#define NUM_EVENTS 2
 struct timeval begin;
+//int Events[NUM_EVENTS] = {PAPI_L2_DCR,PAPI_LD_INS};
+int Events[NUM_EVENTS]={PAPI_L3_DCR,PAPI_L2_DCR};
+//int Events[NUM_EVENTS]={PAPI_L3_TCM,PAPI_L3_TCA};
+//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+
+int EventSet = PAPI_NULL;
+long long values[NUM_EVENTS];
+
 
 /*
 1.1
@@ -46,6 +54,9 @@ Ki=1024 bytes
 */
 
 
+long long unsigned initial,final;
+struct timeval t;
+
 float** A;
 float** B;
 float** C;
@@ -53,10 +64,7 @@ float** trans;
 float** aux;
 double clearcache[30000000];
 
-//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
 
-//int EventSet = PAPI_NULL;
-//long long values[NUM_EVENTS];
 
 
 void freeMatrices(){
@@ -81,19 +89,6 @@ void clearCache (void) {
 	for (i = 0; i < 30000000; i++)
 		clearcache[i] = i;
 }
-
-void start (void) {
-	gettimeofday(&begin, NULL);
-}
-
-
-void stop () {
-	struct timeval end;
-	gettimeofday(&end, NULL);
-	long long duration = (end.tv_sec-begin.tv_sec)*1000000LL + end.tv_usec-begin.tv_usec;
-	printf("%lld\n", duration);
-}
-
 
 void init_mat(int size){
 
@@ -136,40 +131,35 @@ void fillMatrices (int size) {
 
 }
 
-void transpose(float** source, int SIZE){
-
-	
+void transpose(float** mat, int n){
 	int i, j;
+	float temp;
 
-	for (i = 0; i < SIZE; i++) {
-		
-   	 for (j = 0; j < SIZE; j++) {
-    	trans[j][i] = source[i][j];
+	for(i = 0; i < n; i++){
+		for(j = 0; j < i; j++){
+			temp = mat[i][j];
+			mat[i][j] = mat[j][i];
+			mat[j][i] = temp;
+		}
 	}
-  }
-
-    for(i = 0; i < SIZE; i++) {
-        for(j = 0; j < SIZE; j++) 
-            source[i][j] = trans[i][j];          
-	}	      
 }
 
 //1.2
 void matrixMult(float **A, float **B,float **C, int SIZE ) {
 	int i,j,k;
-    float x;
+    //float x;
 
 	for (i = 0; i < SIZE; i++) {
 		for ( j = 0; j < SIZE; j++) {
-			x= 0;
+			//x= 0;
 			for (k = 0; k < SIZE; k++) {
-				x += A[i][k] * B[k][j];
-				//C[i][j] += A[i][k] * B[k][j];
+				//x += A[i][k] * B[k][j];
+				C[i][j] += A[i][k] * B[k][j];
 			}
-		   C[i][j] += x;
+		   //C[i][j] += x;
 		   
 		
-			printf("%f\n",C[i][j]);
+			//printf("%f\n",C[i][j]);
 		}
 
 	}
@@ -179,18 +169,19 @@ void matrixMult(float **A, float **B,float **C, int SIZE ) {
 //1.2
 void matrixMult_T(float **A, float **B,float **C, int SIZE ) {
 	int i,j,k;
-	float x;
+	//float x;
 
 	transpose(B,SIZE);
 
 	for (i = 0; i < SIZE; i++) {
 		for ( j = 0; j < SIZE; j++) {
-			x = 0;
+			//x = 0;
 			for (k = 0; k < SIZE; k++) {
-				x += A[i][k] * B[k][j];
-				//C[i][j] += A[i][k] * B[k][j];
+				//x += A[i][k] * B[j][k];
+				C[i][j] += A[i][k] * B[j][k];
+
 			}
-			C[i][j] += x;
+			//C[i][j] += x;
 		//	printf("%f\n",C[i][j]);
 		}
 
@@ -201,13 +192,13 @@ void matrixMult_T(float **A, float **B,float **C, int SIZE ) {
 //1.3
 void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
-     float x=0;
+    // float x=0;
 
     for (i = 0; i < SIZE; i++) {
         for (k = 0; k < SIZE; k++) {
-        	x = A[i][k];
+        	//x = A[i][k];
             for (j = 0; j < SIZE; j++) {
-               C[i][j] += x * B[k][j];
+               C[i][j] +=  A[i][k] * B[k][j];
             }
   
    	    }
@@ -217,14 +208,14 @@ void matrixMult_ikj(float **A, float **B, float **C, int SIZE) {
 //1.3
 void matrixMult_jki(float **A, float **B, float **C, int SIZE) {
     int i, j, k;
-    float x=0;
+    //float x=0;
   
 
     for (j = 0; j < SIZE; j++){
         for (k = 0; k < SIZE; k++) {
-        	x = B[k][j];
+        	//x = B[k][j];
             for (i = 0; i < SIZE; i++){
-               C[i][j]+= A[i][k] * x;
+               C[i][j]+= A[i][k] * B[k][j];
               
             }
            // C[i][j] = x;
@@ -239,69 +230,117 @@ void matrixMult_jki(float **A, float **B, float **C, int SIZE) {
 void matrixMult_jki_T(float **A, float **B, float **C, int SIZE) {
   
     int i, j, k;
-    float x;
+    //float x;
 
     transpose(A,SIZE);
     transpose(B,SIZE);
 
     for (j = 0; j < SIZE; j++){
         for (k = 0; k < SIZE; k++) {
-        	x = B[k][j];
+        	//x = B[j][k];
             for (i = 0; i < SIZE; i++){
-               C[i][j] += A[i][k] * x;
+               C[j][i] += A[i][k] * B[j][k];
             }
            
             // printf("%f\n",C[i][j]);
  	    }
 	}
+	transpose(C,SIZE);
 }
 
 //1.5
-double double_time() {
-    double time_sec = 0.0;
-    struct timeval time;
-    gettimeofday(&time,(struct timezone*)0);
-    time_sec = (double)(time.tv_sec + time.tv_usec*1.0e-6);
-    return( time_sec );
+
+void start (void) {
+	gettimeofday(&begin, NULL);
 }
 
-static int compare_double (const void * a, const void * b)
-{
-	 if (*(double*)a > *(double*)b) return 1;
-  else if (*(double*)a < *(double*)b) return -1;
-  else return 0;
 
+void stop () {
+	struct timeval end;
+	gettimeofday(&end, NULL);
+	long long duration = (end.tv_sec-begin.tv_sec)*1000000LL + end.tv_usec-begin.tv_usec;
+
+	//return duration;
 }
 
-int Best_k(double* array,int size, int k, double tol) {
-    int i;
-    double sigma, top;
-    if(size < 3) return 0;
-    qsort(array, size, sizeof(double), compare_double);
-    sigma = (double)(array[0] * tol);
-    top = (double)(array[0] + sigma);
-    for(i=1; i<k; i++) {
-        if(array[i] > top) return 0;
-    }
-    return 1;
+
+long long sort_median(long long* a){
+	int i, j, m;
+	
+
+	for(i = 0; i < 5; i++){
+		for(j = 0; j < 5; j++){
+			if(a[j] < a[i]){
+				m = a[i];
+				a[i] = a[j];
+				a[j]  = m;
+			}
+		}
+	}
+	return a[2];
+	
 }
 
-void function_run(void (*function)(float**, float**, float **, int), int size, double* t) {
-    int i, t_size=0;
-    double t0, t1;
-    for(i = 0; i < 8; i++){    
-        clearCache();
-        t0 = double_time();
-        (*function)(A,B,C,size);
-        t1 = (double_time() - t0);
-        t[t_size] = (double) (t1 * 1000.0);
-       printf("%f\n", t[t_size]);
-        t_size++;
-      
-        Best_k(t,t_size,3,0.05);
-    }
-    printf("%f %f %f \n",t[0],t[1],t[2]);
-}
+/*
+1.7 
+i)we will perform two floating point operations on each iteration (one multiplication and one accumulation) .
+There is 3 nested cycles where each one iterates size times resulting in size 3 iterations.
+
+N=32-----------------> FP = 2 * 32^3 =65536
+N=128----------------->  FP = 2 * 128^3 =4194304
+N=1024---------------->  FP = 2 * 1024^3 =2147483648
+N=2048---------------->  FP = 2 * 2048^3 =17179869180
+
+ii)
+
+*/
+
+/*
+1.8
+matrixMult
+
+Cache L1
+mr = 0,00329
+mr= 0,02491
+ mr = 0,60550
+mr=  0,72696
+
+CACHE L2
+N= 32 miss rate: 0.452096
+N=128 miss rate: 0.026115
+N=1024 miss rate: 0.036637
+N=2048 miss rate: 0.519205
+
+CACHE L3
+
+miss rate: 0.000000
+miss rate: 0.000416
+miss rate: 0.000107
+miss rate: 0.006320
+
+matrixMult_T
+
+Cache L1
+miss rate: 0.003786
+miss rate: 0.042448
+miss rate: 0.032730
+miss rate: 0.032208
+
+Cache L2
+miss rate: 0.750929
+miss rate: 0.021624
+miss rate: 0.085100
+miss rate: 0.058554
+
+Cache L3
+miss rate: 0.004484
+miss rate: 0.000426
+miss rate: 0.000853
+miss rate: 0.107686
+
+
+*/
+
 
 //1.10
 
@@ -412,40 +451,82 @@ void compare() {
 			v = 0;
 			printf("ERRRRRROoooooooooooooooooooooooooooooooooooooooooooo\n");
 		}
-	}
-	printf("DEU: %d\n",v);
+	}printf("DEU: %d\n",v);
 }
 
 */
 
-int main(){
-	double *t = malloc(sizeof(double)*8);
+int main(int argc, char const *argv[]){
 
-	int size = 3;
+	//int i;
+     int size;
+	size = 2048;
+        //  size = atoi(argv[1]);
+	//long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
+
     
 	init_mat(size);
 	fillMatrices(size);
 
-	//PAPI_library_init(PAPI_VER_CURRENT);
-	//PAPI_create_eventset(&EventSet);
-	//PAPI_add_events(EventSet,Events,NUM_EVENTS);
 
-	//clearCache();
 
-	//start();
+/*
+	for(i = 0; i < 5; i++){
+		clearCache();
+		start();
+		matrixMult(A,B,C,size);
+		mul[i] = stop();
 
-	//PAPI_start(EventSet);
+		clearCache();
+		start();
+		matrixMult_T(A,B,C,size);
+		mulT[i] = stop();
 
-	//function_run(matrixMult,size,t);
-    //function_run(matrixMult_T,size,t);
-    function_run(matrixMult_ikj,size,t);
-    
-    //function_run(matrixMult_jki,size,t);
-    //function_run(matrixMult_jki_T,size,t);
+		clearCache();
+		start();
+		matrixMult_ikj(A,B,C,size);
+		mul_ikj[i] = stop();
 
-     printMatrix(A, size);
+
+		clearCache();
+		start();
+		matrixMult_jki(A,B,C,size);
+		mul_jki[i] = stop();
+
+
+		clearCache();
+		start();
+		matrixMult_jki_T(A,B,C,size);
+		mul_jkiT[i] = stop();
+	}
+
+	ret = sort_median(mul);
+	printf("Tempo Mult = %lld\n", ret);
+
+	ret = sort_median(mulT);
+	printf("Tempo Mult Trans = %lld\n", ret);
+
+	ret = sort_median(mul_ikj);
+	printf("Tempo ikj = %lld\n", ret);
+
+	ret = sort_median(mul_jki);
+	printf("Tempo jki = %lld\n", ret);
+
+	ret = sort_median(mul_jkiT);
+	printf("Tempo jkiT = %lld\n", ret);
+*/
+
+	PAPI_library_init(PAPI_VER_CURRENT);
+	PAPI_create_eventset(&EventSet);
+	PAPI_add_events(EventSet,Events,NUM_EVENTS);
+
+	start();
+
+	PAPI_start(EventSet);
+
+    // printMatrix(C, size);
 	//matrixMult(A,B,C,size);
-	//matrixMult_T(A,B,C,size);
+	matrixMult_T(A,B,C,size);
 	//matrixMult_ikj(A,B,C,size);
 	//matrixMult_jki(A,B,C,size);
 	//matrixMult_jki_T(A,B,C,size);
@@ -453,9 +534,20 @@ int main(){
 	//matrixMult_block(A,B,aux,N,16);
 	//compare();
 
-    //PAPI_stop(EventSet,values);
+    PAPI_stop(EventSet,values);
     //printf("time: ");
-	//stop();
+	stop();
+      
+	//printf("Cache L1->L2 DCR:%lld LD INS:%lld\n",values[0],values[1]);
+        //double r = (double) values[0]/values[1];
+        //printf("miss rate: %f\n",r);
+        
+      printf("Cache L2->L3 DCR:%lld L2 DCR:%lld\n",values[0],values[1]);
+      double r = (double) values[0]/values[1];
+      printf("miss rate: %f\n",r);
+        // printf("Cache L3-> L3 TCM:%lld L3 TCA:%lld\n",values[0],values[1]);
+          //double r = (double) values[0]/values[1];
+           //printf("miss rate: %f\n",r);
 
 	//printf("RAM ACCESSES: %lld\n",values[0]);
 	//printf("INSTR: %lld\n",values[1]);
