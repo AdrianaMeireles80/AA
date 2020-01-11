@@ -2,11 +2,19 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <immintrin.h>
-//#include <papi.h>
+#include <papi.h>
 #include <unistd.h>
 
-//#define NUM_EVENTS 2
+#define NUM_EVENTS 2
 struct timeval begin;
+//int Events[NUM_EVENTS] = {PAPI_L2_DCR,PAPI_LD_INS};
+int Events[NUM_EVENTS]={PAPI_L3_DCR,PAPI_L2_DCR};
+//int Events[NUM_EVENTS]={PAPI_L3_TCM,PAPI_L3_TCA};
+//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+
+int EventSet = PAPI_NULL;
+long long values[NUM_EVENTS];
+
 
 /*
 1.1
@@ -44,6 +52,8 @@ Ki=1024 bytes
 (iii) N*N*3*4 <  31457280 -> 148 < N < 1619------------> N=1024    |BLOCKSIZE = 16
 (iv) N*N*3*4 < 125829120 -> N < 3238  ----------------->N=2048     |
 */
+
+
 long long unsigned initial,final;
 struct timeval t;
 
@@ -54,10 +64,7 @@ float** trans;
 float** aux;
 double clearcache[30000000];
 
-//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
 
-//int EventSet = PAPI_NULL;
-//long long values[NUM_EVENTS];
 
 
 void freeMatrices(){
@@ -248,12 +255,12 @@ void start (void) {
 }
 
 
-long long  stop () {
+void stop () {
 	struct timeval end;
 	gettimeofday(&end, NULL);
 	long long duration = (end.tv_sec-begin.tv_sec)*1000000LL + end.tv_usec-begin.tv_usec;
 
-	return duration;
+	//return duration;
 }
 
 
@@ -273,6 +280,35 @@ long long sort_median(long long* a){
 	return a[2];
 	
 }
+
+/*
+1.7 
+i)we will perform two floating point operations on each iteration (one multiplication and one accumulation) .
+There is 3 nested cycles where each one iterates size times resulting in size 3 iterations.
+
+N=32-----------------> FP = 2 * 32^3 =65536
+N=128----------------->  FP = 2 * 128^3 =4194304
+N=1024---------------->  FP = 2 * 1024^3 =2147483648
+N=2048---------------->  FP = 2 * 2048^3 =17179869180
+
+ii)
+
+*/
+
+/*
+1.8
+
+Cache L1->L2 DCR:328 LD INS:99697 --->mr = 0,00329
+
+Cache L1->L2 DCR:157147 LD INS:6308971 ----> mr= 0,02491
+
+Cache L1->L2 DCR:1951722641 LD INS:3223319466  ---> mr = 0,60550
+
+Cache L1->L2 DCR:18745073058 LD INS:25785520369 ---> mr=  0,72696
+
+
+*/
+
 
 //1.10
 
@@ -318,21 +354,26 @@ void compare() {
 			v = 0;
 			printf("ERRRRRROoooooooooooooooooooooooooooooooooooooooooooo\n");
 		}
-	}
-	printf("DEU: %d\n",v);
+	}printf("DEU: %d\n",v);
 }
 
 */
 
 int main(int argc, char const *argv[]){
-	double *t = malloc(sizeof(double)*8);
-     int i,size;
-	size = atoi(argv[1]);
-	long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
+
+	//int i;
+     int size;
+	size = 2048;
+        //  size = atoi(argv[1]);
+	//long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
+
     
 	init_mat(size);
 	fillMatrices(size);
 
+
+
+/*
 	for(i = 0; i < 5; i++){
 		clearCache();
 		start();
@@ -376,22 +417,19 @@ int main(int argc, char const *argv[]){
 
 	ret = sort_median(mul_jkiT);
 	printf("Tempo jkiT = %lld\n", ret);
+*/
 
-	
+	PAPI_library_init(PAPI_VER_CURRENT);
+	PAPI_create_eventset(&EventSet);
+	PAPI_add_events(EventSet,Events,NUM_EVENTS);
 
-	//PAPI_library_init(PAPI_VER_CURRENT);
-	//PAPI_create_eventset(&EventSet);
-	//PAPI_add_events(EventSet,Events,NUM_EVENTS);
+	start();
 
-	//clearCache();
-
-	//start();
-
-	//PAPI_start(EventSet);
+	PAPI_start(EventSet);
 
     // printMatrix(C, size);
 	//matrixMult(A,B,C,size);
-	//matrixMult_T(A,B,C,size);
+	matrixMult_T(A,B,C,size);
 	//matrixMult_ikj(A,B,C,size);
 	//matrixMult_jki(A,B,C,size);
 	//matrixMult_jki_T(A,B,C,size);
@@ -399,9 +437,20 @@ int main(int argc, char const *argv[]){
 	//matrixMult_block(A,B,aux,N,16);
 	//compare();
 
-    //PAPI_stop(EventSet,values);
+    PAPI_stop(EventSet,values);
     //printf("time: ");
-	//stop();
+	stop();
+      
+	//printf("Cache L1->L2 DCR:%lld LD INS:%lld\n",values[0],values[1]);
+        //double r = (double) values[0]/values[1];
+        //printf("miss rate: %f\n",r);
+        
+      printf("Cache L2->L3 DCR:%lld L2 DCR:%lld\n",values[0],values[1]);
+      double r = (double) values[0]/values[1];
+      printf("miss rate: %f\n",r);
+        // printf("Cache L3-> L3 TCM:%lld L3 TCA:%lld\n",values[0],values[1]);
+          //double r = (double) values[0]/values[1];
+           //printf("miss rate: %f\n",r);
 
 	//printf("RAM ACCESSES: %lld\n",values[0]);
 	//printf("INSTR: %lld\n",values[1]);
