@@ -10,10 +10,10 @@ struct timeval begin;
 //int Events[NUM_EVENTS] = {PAPI_L2_DCR,PAPI_LD_INS};
 //int Events[NUM_EVENTS]={PAPI_L3_DCR,PAPI_L2_DCR};
 //int Events[NUM_EVENTS]={PAPI_L3_TCM,PAPI_L3_TCA};
-int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
 
-int EventSet = PAPI_NULL;
-long long values[NUM_EVENTS];
+//int EventSet = PAPI_NULL;
+//long long values[NUM_EVENTS];
 
 
 /*
@@ -255,12 +255,12 @@ void start (void) {
 }
 
 
-void stop () {
+long long stop () {
 	struct timeval end;
 	gettimeofday(&end, NULL);
 	long long duration = (end.tv_sec-begin.tv_sec)*1000000LL + end.tv_usec-begin.tv_usec;
 
-	//return duration;
+	return duration;
 }
 
 
@@ -382,17 +382,17 @@ mr= 0,02491
 mr=  0,72696
 
 CACHE L2
-N= 32 miss rate: 0.452096
-N=128 miss rate: 0.026115
-N=1024 miss rate: 0.036637
-N=2048 miss rate: 0.519205
+N= 32 miss rate: 0.452096  miss rate: 0.479495
+N=128 miss rate: 0.026115  miss rate: 0.023977
+N=1024 miss rate: 0.036637  miss rate: 0.037875
+N=2048 miss rate: 0.519205  miss rate: 0.500934
 
 CACHE L3
 
-miss rate: 0.000256
-miss rate: 0.000416
-miss rate: 0.000107
-miss rate: 0.006320
+miss rate: 0.000256      miss rate: 0.989011
+miss rate: 0.000416      miss rate: 0.548404
+miss rate: 0.000107      miss rate: 0.002308
+miss rate: 0.006320      miss rate: 0.001932
 
 matrixMult_T
 
@@ -403,16 +403,16 @@ miss rate: 0.032730
 miss rate: 0.032208
 
 Cache L2
-miss rate: 0.750929
-miss rate: 0.021624
-miss rate: 0.085100
-miss rate: 0.058554
+miss rate: 0.750929       miss rate: 0.891667
+miss rate: 0.021624       miss rate: 0.038353
+miss rate: 0.085100       miss rate: 0.086400
+miss rate: 0.058554       miss rate: 0.060965
 
 Cache L3
-miss rate: 0.004484
-miss rate: 0.000426
-miss rate: 0.000853
-miss rate: 0.107686
+miss rate: 0.004484      miss rate: 0.970464
+miss rate: 0.000426      miss rate: 0.213758
+miss rate: 0.000853      miss rate: 0.014656
+miss rate: 0.107686      miss rate: 0.089760
 
 
 */
@@ -456,30 +456,39 @@ void matrixMult_block(float **A, float **B, float **C, int SIZE){
 
 //1.11
 
-void matrixMult_block_Vec(float** __restrict__ A, float** __restrict__ B, float** __restrict__ C, int SIZE, int b_SIZE) {
-	int i, j, k, kk, jj;
-	float x;
-	
+void matrixMult_block_Vec(float** A, float** B, float** C, int SIZE) {
+	int i = 0, j = 0, jj = 0, kk = 0;
+  float x[16];
+  int b_SIZE = 16;
 
-		for(kk = 0; kk < SIZE; kk += b_SIZE){
 
-			for(jj = 0; jj < SIZE; jj += b_SIZE){
+  for (jj = 0; jj < SIZE; jj += b_SIZE) {
+    for (kk = 0; kk < SIZE; kk += b_SIZE) {
+      for (i = 0; i < SIZE; i++) {       
+        for (j = jj; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++) {
+          x[0] = A[i][kk] * B[kk][j];
+          x[1] = A[i][kk+1] * B[kk+1][j];
+          x[2] = A[i][kk+2] * B[kk+2][j];
+          x[3] = A[i][kk+3] * B[kk+3][j];
+          x[4] = A[i][kk+4] * B[kk+4][j];
+          x[5] = A[i][kk+5] * B[kk+5][j];
+          x[6] = A[i][kk+6] * B[kk+6][j];
+          x[7] = A[i][kk+7] * B[kk+7][j];
+          x[8] = A[i][kk+8] * B[kk+8][j];
+          x[9] = A[i][kk+9] * B[kk+9][j];
+          x[10] = A[i][kk+10] * B[kk+10][j];
+          x[11] = A[i][kk+11] * B[kk+11][j];
+          x[12] = A[i][kk+12] * B[kk+12][j];
+          x[13] = A[i][kk+13] * B[kk+13][j];
+          x[14] = A[i][kk+14] * B[kk+14][j];
+          x[15] = A[i][kk+15] * B[kk+15][j];
 
-				for(i = 0; i < SIZE; i++){
-
-					for(j = jj; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++) {
-				
-						x=0;
-						for(k = kk; k < ((kk + b_SIZE) > SIZE ? SIZE : (kk + b_SIZE)); k++) {
-					
-							x += A[i][k]*B[k][j];
-						
-						}
-					C[i][j] += x;
-					}
-				}
-			}
-		}
+          
+          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
+        }
+      }
+    }
+  }
 }
 
 //1.12
@@ -542,14 +551,15 @@ int main(int argc, char const *argv[]){
         //  size = atoi(argv[1]);
 	//long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
 
-    
+        long long mulB[5],mulBV[5],mulBVO[5];
 	init_mat(size);
 	fillMatrices(size);
 
 
 
-/*
+
 	for(i = 0; i < 5; i++){
+/*
 		clearCache();
 		start();
 		matrixMult(A,B,C,size);
@@ -576,8 +586,26 @@ int main(int argc, char const *argv[]){
 		start();
 		matrixMult_jki_T(A,B,C,size);
 		mul_jkiT[i] = stop();
+              */
+             clearCache();
+                start();
+                matrixMult_block(A,B,C,size);
+                mulB[i] = stop();
+
+                clearCache();
+                start();
+                matrixMult_block_Vec(A,B,C,size);
+                mulBV[i] = stop();
+
+
+                clearCache();
+                start();
+                matrixMult_blockVecOMP(A,B,C,size);
+                mulBVO[i] = stop();
+                 
 	}
 
+/*
 	ret = sort_median(mul);
 	printf("Tempo Mult = %lld\n", ret);
 
@@ -593,17 +621,25 @@ int main(int argc, char const *argv[]){
 	ret = sort_median(mul_jkiT);
 	printf("Tempo jkiT = %lld\n", ret);
 */
+        ret = sort_median(mulB);
+        printf("Tempo block = %lld\n", ret);
 
-	PAPI_library_init(PAPI_VER_CURRENT);
-	PAPI_create_eventset(&EventSet);
-	PAPI_add_events(EventSet,Events,NUM_EVENTS);
+        ret = sort_median(mulBV);
+        printf("Tempo vector = %lld\n", ret);
 
-	start();
+        ret = sort_median(mulBVO);
+        printf("Tempo omp = %lld\n", ret);
 
-	PAPI_start(EventSet);
+	//PAPI_library_init(PAPI_VER_CURRENT);
+	//PAPI_create_eventset(&EventSet);
+	//PAPI_add_events(EventSet,Events,NUM_EVENTS);
+
+	//start();
+
+	//PAPI_start(EventSet);
 
     // printMatrix(C, size);
-	matrixMult(A,B,C,size);
+	//matrixMult(A,B,C,size);
 	//matrixMult_T(A,B,C,size);
 	//matrixMult_ikj(A,B,C,size);
 	//matrixMult_jki(A,B,C,size);
@@ -612,9 +648,9 @@ int main(int argc, char const *argv[]){
 	//matrixMult_block(A,B,aux,N,16);
 	//compare();
 
-    PAPI_stop(EventSet,values);
-    printf("time: ");
-	stop();
+    //PAPI_stop(EventSet,values);
+    //printf("time: ");
+	//stop();
       
 	//printf("Cache L1->L2 DCR:%lld LD INS:%lld\n",values[0],values[1]);
         //double r = (double) values[0]/values[1];
@@ -628,11 +664,11 @@ int main(int argc, char const *argv[]){
           //double r = (double) values[0]/values[1];
            //printf("miss rate: %f\n",r);
 
-	printf("RAM ACCESSES: %lld\n",values[0]);
-	printf("INSTR: %lld\n",values[1]);
+	//printf("RAM ACCESSES: %lld\n",values[0]);
+	//printf("INSTR: %lld\n",values[1]);
 
-	double r = (double) values[0]/values[1];
-	printf("RAM / INS: %f\n",r);
+	//double r = (double) values[0]/values[1];
+	//printf("RAM / INS: %f\n",r);
 
 
 	
