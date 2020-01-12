@@ -8,9 +8,9 @@
 #define NUM_EVENTS 2
 struct timeval begin;
 //int Events[NUM_EVENTS] = {PAPI_L2_DCR,PAPI_LD_INS};
-int Events[NUM_EVENTS]={PAPI_L3_DCR,PAPI_L2_DCR};
+//int Events[NUM_EVENTS]={PAPI_L3_DCR,PAPI_L2_DCR};
 //int Events[NUM_EVENTS]={PAPI_L3_TCM,PAPI_L3_TCA};
-//int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
+int Events[NUM_EVENTS] = {PAPI_L3_TCM,PAPI_TOT_INS};
 
 int EventSet = PAPI_NULL;
 long long values[NUM_EVENTS];
@@ -282,6 +282,82 @@ long long sort_median(long long* a){
 }
 
 /*
+1.6
+
+i),ii) 
+--matrixMult
+
+RAM accesses per instruction
+N=32 -> RAM / INS: 0.000729
+N=128 ->RAM / INS: 0.000124
+N=1024 ->RAM / INS: 0.000031
+N=2048 ->RAM / INS: 0.000173
+
+number of bytes transferred to/from the RAM
+N=32 -> 12
+N=128 ->134
+N=1024 -> 17183
+N=2048 ->759216
+
+--matrixmult_T
+
+RAM accesses per instruction
+N=32 ->RAM / INS: 0.000953
+N=128 ->RAM / INS: 0.000146
+N=1024 ->RAM / INS: 0.000012
+N=2048 ->RAM / INS: 0.000090
+
+number of bytes transferred to/from the RAM
+N=32 ->14
+N=128 ->138
+N=1024 ->6003
+N=2048 ->347137
+
+--matrixMult_ikj
+
+RAM accesses per instruction
+N=32 ->RAM / INS: 0.000977
+N=128 ->RAM / INS: 0.000123
+N=1024 ->RAM / INS: 0.000006
+N=2048 ->RAM / INS: 0.000051
+
+number of bytes transferred to/from the RAM
+N=32 ->14
+N=128 ->116
+N=1024 ->3110
+N=2048 ->195798
+
+--matrixMult_jki
+
+RAM accesses per instruction
+N=32 ->RAM / INS: 0.000506
+N=128 ->RAM / INS: 0.000115
+N=1024 ->RAM / INS: 0.000029
+N=2048 ->RAM / INS: 0.000155
+
+number of bytes transferred to/from the RAM
+N=32 ->10
+N=128 ->155
+N=1024 ->19631
+N=2048 ->850758
+
+--matrixMult_jki_T
+
+RAM accesses per instruction
+N=32 ->RAM / INS: 0.000684
+N=128 ->RAM / INS: 0.000161
+N=1024 -> RAM / INS: 0.000033
+N=2048 ->RAM / INS: 0.000243
+
+number of bytes transferred to/from the RAM
+N=32 ->12
+N=128 ->175
+N=1024 ->17986
+N=2048 ->1068746
+
+*/
+
+/*
 1.7 
 i)we will perform two floating point operations on each iteration (one multiplication and one accumulation) .
 There is 3 nested cycles where each one iterates size times resulting in size 3 iterations.
@@ -313,7 +389,7 @@ N=2048 miss rate: 0.519205
 
 CACHE L3
 
-miss rate: 0.000000
+miss rate: 0.000256
 miss rate: 0.000416
 miss rate: 0.000107
 miss rate: 0.006320
@@ -378,6 +454,8 @@ void matrixMult_block(float **A, float **B, float **C, int SIZE){
 	}
 }
 
+//1.11
+
 void matrixMult_block_Vec(float** __restrict__ A, float** __restrict__ B, float** __restrict__ C, int SIZE, int b_SIZE) {
 	int i, j, k, kk, jj;
 	float x;
@@ -404,7 +482,7 @@ void matrixMult_block_Vec(float** __restrict__ A, float** __restrict__ B, float*
 		}
 }
 
-
+//1.12
 void matrixMult_blockVecOMP (float **A, float **B, float **C, int SIZE) {
   int i = 0, j = 0, jj = 0, kk = 0;
   float x[16];
@@ -460,7 +538,7 @@ int main(int argc, char const *argv[]){
 
 	//int i;
      int size;
-	size = 2048;
+	size = 32;
         //  size = atoi(argv[1]);
 	//long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
 
@@ -525,8 +603,8 @@ int main(int argc, char const *argv[]){
 	PAPI_start(EventSet);
 
     // printMatrix(C, size);
-	//matrixMult(A,B,C,size);
-	matrixMult_T(A,B,C,size);
+	matrixMult(A,B,C,size);
+	//matrixMult_T(A,B,C,size);
 	//matrixMult_ikj(A,B,C,size);
 	//matrixMult_jki(A,B,C,size);
 	//matrixMult_jki_T(A,B,C,size);
@@ -535,25 +613,26 @@ int main(int argc, char const *argv[]){
 	//compare();
 
     PAPI_stop(EventSet,values);
-    //printf("time: ");
+    printf("time: ");
 	stop();
       
 	//printf("Cache L1->L2 DCR:%lld LD INS:%lld\n",values[0],values[1]);
         //double r = (double) values[0]/values[1];
         //printf("miss rate: %f\n",r);
         
-      printf("Cache L2->L3 DCR:%lld L2 DCR:%lld\n",values[0],values[1]);
-      double r = (double) values[0]/values[1];
-      printf("miss rate: %f\n",r);
+     // printf("Cache L2->L3 DCR:%lld L2 DCR:%lld\n",values[0],values[1]);
+     // double r = (double) values[0]/values[1];
+      //printf("miss rate: %f\n",r);
+
         // printf("Cache L3-> L3 TCM:%lld L3 TCA:%lld\n",values[0],values[1]);
           //double r = (double) values[0]/values[1];
            //printf("miss rate: %f\n",r);
 
-	//printf("RAM ACCESSES: %lld\n",values[0]);
-	//printf("INSTR: %lld\n",values[1]);
+	printf("RAM ACCESSES: %lld\n",values[0]);
+	printf("INSTR: %lld\n",values[1]);
 
-	//double r = (double) values[0]/values[1];
-	//printf("RAM / INS: %f\n",r);
+	double r = (double) values[0]/values[1];
+	printf("RAM / INS: %f\n",r);
 
 
 	
