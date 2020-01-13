@@ -529,6 +529,47 @@ void matrixMult_blockVecOMP (float **A, float **B, float **C, int SIZE) {
   }
 }
 
+//1.13
+void knl(float **A, float **B, float **C, int SIZE) {
+        int i = 0, j = 0, jj = 0, kk = 0, z = 0;
+  int b_SIZE = 16;
+  float x[16], aux[16];
+
+#pragma omp parallel for private(i,j,jj,kk,x,aux,z)
+  for (jj = 0; jj < SIZE; jj += b_SIZE) {
+    for (kk = 0; kk < SIZE; kk += b_SIZE) {
+      for (i = 0; i < SIZE; i++) {
+        #pragma omp simd
+        for (j = jj, z = 0; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++, z++) {
+          x[0] = A[i][kk] * B[kk][j];
+          x[1] = A[i][kk+1] * B[kk+1][j];
+          x[2] = A[i][kk+2] * B[kk+2][j];
+          x[3] = A[i][kk+3] * B[kk+3][j];
+          x[4] = A[i][kk+4] * B[kk+4][j];
+          x[5] = A[i][kk+5] * B[kk+5][j];
+          x[6] = A[i][kk+6] * B[kk+6][j];
+          x[7] = A[i][kk+7] * B[kk+7][j];
+          x[8] = A[i][kk+8] * B[kk+8][j];
+          x[9] = A[i][kk+9] * B[kk+9][j];
+          x[10] = A[i][kk+10] * B[kk+10][j];
+          x[11] = A[i][kk+11] * B[kk+11][j];
+          x[12] = A[i][kk+12] * B[kk+12][j];
+          x[13] = A[i][kk+13] * B[kk+13][j];
+          x[14] = A[i][kk+14] * B[kk+14][j];
+          x[15] = A[i][kk+15] * B[kk+15][j];
+
+          aux[z] = x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
+        }
+
+        for (j = jj, z= 0; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++, z++) {
+          C[i][j] += aux[z];
+        }
+      }
+    }
+  }
+}
+
+
 /*
 void compare() {
 	int i, v = 1;
@@ -551,10 +592,10 @@ int main(int argc, char const *argv[]){
         //  size = atoi(argv[1]);
 	//long long mul[5], mulT[5], mul_ikj[5],mul_jki[5],mul_jkiT[5], ret;
 
-        long long mulB[5],mulBV[5],mulBVO[5];
+       // long long mulB[5],mulBV[5],mulBVO[5];
 	init_mat(size);
 	fillMatrices(size);
-
+long long mulKNL[5];
 
 
 
@@ -586,7 +627,7 @@ int main(int argc, char const *argv[]){
 		start();
 		matrixMult_jki_T(A,B,C,size);
 		mul_jkiT[i] = stop();
-              */
+              
              clearCache();
                 start();
                 matrixMult_block(A,B,C,size);
@@ -602,6 +643,13 @@ int main(int argc, char const *argv[]){
                 start();
                 matrixMult_blockVecOMP(A,B,C,size);
                 mulBVO[i] = stop();
+                */
+
+                clearCache();
+                start();
+                knl(A,B,C,size);
+                mulKNL[i] = stop();
+
                  
 	}
 
@@ -620,7 +668,7 @@ int main(int argc, char const *argv[]){
 
 	ret = sort_median(mul_jkiT);
 	printf("Tempo jkiT = %lld\n", ret);
-*/
+
         ret = sort_median(mulB);
         printf("Tempo block = %lld\n", ret);
 
@@ -629,6 +677,10 @@ int main(int argc, char const *argv[]){
 
         ret = sort_median(mulBVO);
         printf("Tempo omp = %lld\n", ret);
+
+        */
+	ret = sort_median(mulKNL);
+        printf("Tempo KNL = %lld\n", ret);
 
 	//PAPI_library_init(PAPI_VER_CURRENT);
 	//PAPI_create_eventset(&EventSet);
