@@ -484,7 +484,8 @@ void matrixMult_block_Vec(float** A, float** B, float** C, int SIZE) {
           x[15] = A[i][kk+15] * B[kk+15][j];
 
           
-          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
+          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] 
+          + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
         }
       }
     }
@@ -522,7 +523,8 @@ void matrixMult_blockVecOMP (float **A, float **B, float **C, int SIZE) {
           x[15] = A[i][kk+15] * B[kk+15][j];
 
           
-          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
+          C[i][j] += x[0] + x[1] + x[2] + x[3] + x[4] + x[5] + x[6] + x[7] 
+          + x[8] + x[9] + x[10] + x[11] + x[12] + x[13] + x[14] + x[15];
         }
       }
     }
@@ -540,7 +542,7 @@ void knl(float **A, float **B, float **C, int SIZE) {
     for (kk = 0; kk < SIZE; kk += b_SIZE) {
       for (i = 0; i < SIZE; i++) {
         #pragma omp simd
-        for (j = jj, z = 0; j < ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++, z++) {
+        for (j = jj, z = 0; j< ((jj + b_SIZE) > SIZE ? SIZE : (jj + b_SIZE)); j++, z++) {
           x[0] = A[i][kk] * B[kk][j];
           x[1] = A[i][kk+1] * B[kk+1][j];
           x[2] = A[i][kk+2] * B[kk+2][j];
@@ -569,6 +571,34 @@ void knl(float **A, float **B, float **C, int SIZE) {
   }
 }
 
+//1.14
+void cuda (float*A, float*B, float*C, int N) {
+  float *DA, *DB, *DC;
+
+   int b_SIZE = 16;
+  size_t size = N * N * sizeof(float);
+
+  cudaMalloc(&DA, size);
+  cudaMalloc(&DB, size);
+
+  cudaMemcpy(DA, A, size, cudaMemcpyHostToDevice);
+  cudaMemcpy(DB, B, size, cudaMemcpyHostToDevice);
+
+  cudaMalloc(&DC, size);
+
+  dim3 dimBlock(b_SIZE,b_SIZE);
+  dim3 dimGrid((N + dimBlock.x -1) / dimBlock.x, (N + dimBlock.y -1 )/ dimBlock.y);
+
+  cudaBlockKernel<<<dimGrid, dimBlock>>>(DA, DB, DC, N);
+
+  cudaDeviceSynchronize();
+
+  cudaMemcpy(C, DC, size, cudaMemcpyDeviceToHost);
+
+  cudaFree(DA);
+  cudaFree(DB);
+  cudaFree(DC);
+}
 
 /*
 void compare() {
